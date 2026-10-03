@@ -1,0 +1,23 @@
+{% from "_macros.html" import icon %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · {{ APP_NAME }}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<main class="bare">
+  {% if error %}<div class="flash flash-error" role="alert">That password is not right.</div>{% endif %}
+  <form class="auth-card" method="post" action="/login">
+    <div class="auth-brand"><span class="brand-mark" aria-hidden="true">{{ icon('phi') }}</span>
+      <div><h1>{{ APP_NAME }}</h1><p class="muted small">This copy is private: type its password.</p></div></div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required autofocus></label>
+    <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+  </form>
+</main>
+</body>
+</html>

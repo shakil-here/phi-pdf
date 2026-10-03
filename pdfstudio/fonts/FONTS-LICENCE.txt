@@ -1,0 +1,8 @@
+The font files in this folder come from Google Fonts (https://fonts.google.com) and are released under the
+SIL Open Font License, Version 1.1 (https://openfontlicense.org): they may be used, shared, bundled and
+embedded in documents freely, and may not be sold by themselves.
+
+Roboto, Roboto Mono (Apache License 2.0 / OFL), Open Sans, Lato, Montserrat, Poppins, Merriweather, Lora,
+Playfair Display, Libre Baskerville, JetBrains Mono, Oswald, Bebas Neue, Dancing Script, Caveat, Great Vibes,
+Pacifico, Satisfy, Homemade Apple (Apache License 2.0), Hind Siliguri, Noto Sans Bengali, Noto Serif Bengali,
+Tiro Bangla, Baloo Da 2, Galada, Atma, Noto Sans Devanagari, Noto Naskh Arabic — © their authors.

@@ -1,0 +1,74 @@
+{% from "_macros.html" import icon %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf }}">
+  <meta name="referrer" content="same-origin">
+  <meta name="description" content="{{ APP_NAME }}: free, open-source PDF tools. Merge, split, compress, OCR, convert, edit text and sign PDFs on your own computer.">
+  <title>{% block title %}{{ APP_NAME }}{% endblock %} · {{ APP_NAME }}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/pdftools.css">
+  
+  <script src="/static/app.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">{{ icon('phi') }}</span>
+      <span class="brand-text"><strong>{{ APP_NAME }}</strong><small>{{ APP_TAGLINE }}</small></span>
+    </a>
+    <a class="btn btn-primary btn-block new-btn" href="/tools/edit">{{ icon('edit') }} Edit a PDF</a>
+    <nav class="nav" aria-label="Main">
+      {% set nav_groups = [
+        ('', [('/', 'home', 'All tools'), ('/files', 'folder', 'My files')]),
+        ('Most used', [('/tools/merge', 'merge', 'Merge PDF'), ('/tools/compress', 'compress', 'Compress PDF'),
+                       ('/tools/ocr', 'scan', 'OCR: scans to text'), ('/tools/pdf2word', 'word', 'PDF to Word'),
+                       ('/tools/office2pdf', 'office', 'Office to PDF'), ('/tools/split', 'split', 'Split PDF'),
+                       ('/tools/organize', 'grid', 'Organize pages'), ('/tools/protect', 'lock', 'Protect PDF')]),
+        ('More', [('/developers', 'api', 'API & command line'), ('/settings', 'settings', 'Settings & system check')]),
+      ] %}
+      {% set nav_ns = namespace(best='') %}
+      {% for _, links in nav_groups %}{% for href, _, _ in links %}
+        {% if (path == href or (href != '/' and path.startswith(href ~ '/'))) and href|length > nav_ns.best|length %}{% set nav_ns.best = href %}{% endif %}
+      {% endfor %}{% endfor %}
+      {% for title, links in nav_groups %}
+      {% if title %}<div class="nav-group">{{ title }}</div>{% endif %}
+      {% for href, ic, label in links %}
+      {% set active = href == nav_ns.best %}
+      <a href="{{ href }}" class="nav-link{% if active %} active{% endif %}"{% if active %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+      {% endfor %}
+      {% endfor %}
+    </nav>
+    {% if public %}
+    <p class="sidebar-note"><strong>Private by design.</strong> Your files are only visible to you{% if keep_hours %} and are deleted automatically after {{ keep_hours|round(1)|string|replace('.0', '') }} hour{{ 's' if keep_hours != 1 }}{% endif %}.</p>
+    {% else %}
+    <p class="sidebar-note"><strong>Runs on this computer.</strong> Nothing is uploaded to the internet unless you choose AI reading.</p>
+    {% endif %}
+    <div class="sidebar-foot">
+      <div class="side-links"><a href="/developers">API</a><a href="/settings">v{{ VERSION }}</a><span>AGPL-3.0</span></div>
+      <div class="sidebar-actions">
+        <button class="btn btn-ghost btn-icon" type="button" data-theme-toggle title="Light / dark" aria-label="Switch light or dark">{{ icon('moon') }}</button>
+        {% if signed %}
+        <form method="post" action="/logout"><button class="btn btn-ghost btn-icon" type="submit" title="Sign out" aria-label="Sign out">{{ icon('logout') }}</button></form>
+        {% endif %}
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" aria-hidden="true"></div>
+  <div class="main">
+    <header class="topbar">
+      <button class="btn btn-ghost btn-icon menu-btn" type="button" data-menu aria-controls="sidebar" aria-label="Menu">{{ icon('menu') }}</button>
+      <div class="topbar-title">{% block heading %}{% endblock %}</div>
+      <div class="topbar-actions">{% block actions %}{% endblock %}</div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}API &amp; command line{% endblock %}
+{% block heading %}<h1>API &amp; command line</h1><span class="muted small">every tool from scripts, other apps and the terminal · the same engine as these pages</span>{% endblock %}
+{% block content %}
+<div class="stack">
+<section class="card">
+  <div class="card-head"><h2>{{ icon('api') }} REST API</h2><span class="muted small">no account, no state: send files, get the result</span></div>
+  <p>One call per tool: <code>POST {{ base }}/api/v1/tools/&lt;tool&gt;</code> with <code>multipart/form-data</code>:
+    <code>files</code> (one or more), <code>params</code> (a JSON object of the tool's options; plain form fields work too), and
+    <code>image_file</code> / <code>source_file</code> for the watermark picture or the file to insert. The answer is the result file
+    (a ZIP when there are several); the header <code>X-PHIPDF-Summary</code> says what was done. Errors come back as
+    <code>{"error": "…"}</code> with status 400.{% if settings.api_key %} Send <code>Authorization: Bearer &lt;key&gt;</code>.{% endif %}</p>
+  <div class="code-block"><pre id="ex1">curl -f -o small.pdf -F files=@big.pdf -F 'params={"level":"high"}' {{ base }}/api/v1/tools/compress</pre><button class="btn btn-ghost btn-sm" type="button" data-copy="ex1">Copy</button></div>
+  <div class="code-block"><pre id="ex2">curl -f -o searchable.pdf -F files=@scan.pdf -F 'params={"language":"ben+eng","clean":"strong"}' {{ base }}/api/v1/tools/ocr</pre><button class="btn btn-ghost btn-sm" type="button" data-copy="ex2">Copy</button></div>
+  <div class="code-block"><pre id="ex3">import requests   # Python
+r = requests.post("{{ base }}/api/v1/tools/merge",
+                  files=[("files", open("a.pdf", "rb")), ("files", open("b.pdf", "rb"))],
+                  data={"params": '{"bookmarks": "files"}'})
+r.raise_for_status(); open("merged.pdf", "wb").write(r.content)</pre><button class="btn btn-ghost btn-sm" type="button" data-copy="ex3">Copy</button></div>
+  <p class="help">Each tool page has a <strong>“Use this from code”</strong> box that writes these commands with the options you picked. <code>GET /api/v1/tools</code> lists every tool.</p>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>{{ icon('code') }} Command line</h2></div>
+  <div class="code-block"><pre id="cli">phi-pdf                          # open the app on this computer (browser opens)
+phi-pdf tools                    # list the tools
+phi-pdf run merge a.pdf b.pdf -o out/
+phi-pdf run compress big.pdf --set level=high -o out/
+phi-pdf run ocr scan.pdf --set language=ben+eng --set output=docx -o out/
+phi-pdf run watermark report.pdf --set kind=image --image-file logo.png -o out/
+phi-pdf doctor                   # what is installed (OCR, LibreOffice…)
+phi-pdf serve --public           # a server for many people (see the README)</pre><button class="btn btn-ghost btn-sm" type="button" data-copy="cli">Copy</button></div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>{{ icon('grid') }} Tools and their ids</h2></div>
+  <div class="table-wrap"><table class="table table-dense">
+    <thead><tr><th>id</th><th>Tool</th><th>Takes</th><th>What it does</th></tr></thead>
+    <tbody>{% for t in tool_list if t.page != 'organize' %}
+      <tr><td><code>{{ t.id }}</code></td><td>{{ t.label }}</td><td class="nowrap">{{ {'pdf': 'PDF', 'image': 'pictures', 'any': 'PDFs, pictures', 'office': 'Office files', 'text': 'text/MD/HTML'}[t.accepts] }}{% if t.max_files > 1 %} ×{{ t.max_files }}{% endif %}</td><td class="notes">{{ t.blurb }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+</div>
+{% endblock %}

@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% macro seg(name, options, value, label='') -%}
+<div class="segmented pdf-seg" role="radiogroup"{% if label %} aria-label="{{ label }}"{% endif %}>
+  {% for v, text in options %}<label><input type="radio" name="{{ name }}" value="{{ v }}"{% if v|string == value|string %} checked{% endif %}> {{ text }}</label>{% endfor %}
+</div>
+{%- endmacro %}
+{% macro slider(name, lo, hi, value, unit='', step=1) -%}
+<div class="pdf-range"><input type="range" name="{{ name }}" min="{{ lo }}" max="{{ hi }}" step="{{ step }}" value="{{ value }}" data-unit="{{ unit }}"><output>{{ value }}{{ unit }}</output></div>
+{%- endmacro %}
+{% macro pages_field(label='Pages', help='Empty = every page. For example 1-3, 7, 10-last, odd, even.', name='pages', value='') -%}
+<label class="field"><span>{{ label }}</span><input type="text" name="{{ name }}" value="{{ value }}" placeholder="{{ 'none' if name == 'skip' else 'all' }}" autocomplete="off" data-pages-input="{{ name }}">
+  <span class="help">{{ help }}</span></label>
+{%- endmacro %}
+{% macro spots(name, value, with_tiled=False, only=None) -%}
+<div class="pdf-spots" role="radiogroup" aria-label="Position">
+  {% for v, t in [('tl', 'Top left'), ('tc', 'Top centre'), ('tr', 'Top right'), ('ml', 'Middle left'), ('c', 'Centre'), ('mr', 'Middle right'), ('bl', 'Bottom left'), ('bc', 'Bottom centre'), ('br', 'Bottom right')] %}
+  {% if only is none or v in only %}<label title="{{ t }}"><input type="radio" name="{{ name }}" value="{{ v }}"{% if v == value %} checked{% endif %} aria-label="{{ t }}"></label>{% else %}<span></span>{% endif %}
+  {% endfor %}
+</div>
+{%- endmacro %}
+{% set run_labels = {'merge': 'Merge PDFs', 'split': 'Split PDF', 'organize': 'Open the pages', 'remove': 'Remove pages',
+   'extract': 'Extract pages', 'rotate': 'Rotate pages', 'insert': 'Insert pages', 'compress': 'Compress PDF',
+   'repair': 'Repair PDF', 'ocr': 'Read the pages', 'img2pdf': 'Make the PDF', 'pdf2img': 'Make the pictures',
+   'pdf2text': 'Get the text', 'extract_images': 'Save the pictures', 'edit': 'Open the editor', 'watermark': 'Add the watermark',
+   'numbers': 'Add numbers & text', 'replace': 'Replace text', 'crop': 'Crop pages', 'resize': 'Change page size',
+   'nup': 'Make the sheets', 'protect': 'Protect PDF', 'unlock': 'Unlock PDF', 'metadata': 'Save properties',
+   'flatten': 'Flatten PDF', 'pdf2word': 'Make the Word file', 'pdf2excel': 'Make the spreadsheet',
+   'pdf2ppt': 'Make the slides', 'office2pdf': 'Convert to PDF', 'text2pdf': 'Make the PDF', 'redact': 'Black it out',
+   'sanitize': 'Clean the PDF'} %}
+{% block title %}{{ tool.label }}{% endblock %}
+{% block head %}<script src="/static/pdftools.js" defer></script>{% endblock %}
+{% block heading %}<div class="pdf-tool-head"><span class="pdf-tool-icon pdf-g-{{ tool.group }}">{{ icon(tool.icon) }}</span>
+  <div><h1>{{ tool.label }}</h1><span class="muted small">{{ tool.blurb }}</span></div></div>{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/">{{ icon('grid') }} All tools</a>
+<a class="btn btn-ghost" href="/files">{{ icon('folder') }} My files</a>{% endblock %}
+{% block content %}
+<script type="application/json" id="pdf-chosen-data">{{ chosen_json|safe }}</script>
+<div class="pdf-layout" data-pdf-page="tool" data-tool="{{ tool.id }}" data-accepts="{{ tool.accepts }}" data-min="{{ tool.min_files }}" data-max="{{ tool.max_files }}"
+     data-page="{{ tool.page }}" data-has-preview="{{ 1 if tool.preview else '' }}">
+  <div class="stack">
+    <section class="card" data-files-card>
+      <div class="card-head">
+        <h2>{{ icon('folder') }} {{ 'Files' if tool.max_files > 1 else 'File' }}</h2>
+        <span class="muted small">{% if tool.id == 'merge' %}drag to set the order · pages per file are optional{% elif tool.id == 'img2pdf' %}one page per picture, in this order (drag to change){% elif tool.max_files > 1 %}up to {{ tool.max_files }}{% elif tool.accepts == 'pdf' %}one PDF{% endif %}</span>
+      </div>
+      <ul class="pdf-chosen" data-chosen></ul>
+      <label class="dropzone" data-pdf-drop data-chosen-empty>
+        <input type="file"{% if tool.max_files > 1 %} multiple{% endif %} accept="{{ accept }}" aria-label="Choose files">
+        <span class="dropzone-icon">{{ icon('upload') }}</span>
+        <strong>Drop {{ {'image': 'pictures', 'any': 'PDFs or pictures', 'office': 'Word, Excel, PowerPoint or LibreOffice files', 'text': 'text, Markdown or HTML files'}.get(tool.accepts) or ('PDFs' if tool.max_files > 1 else 'a PDF') }} here</strong>
+        <span class="muted small">or click to choose · up to {{ (max_mb * 1048576)|size|replace(".0 ", " ") }} each</span>
+      </label>
+      <div class="pdf-add-row">
+        <button class="btn btn-secondary btn-sm" type="button" data-open-picker>{{ icon('folder') }} From My files</button>
+        <label class="btn btn-secondary btn-sm file-btn" data-more-upload hidden>{{ icon('upload') }} Upload more
+          <input type="file"{% if tool.max_files > 1 %} multiple{% endif %} accept="{{ accept }}" data-pdf-upload hidden></label>
+      </div>
+      <div class="pdf-upload-status" data-upload-status hidden></div>
+    </section>
+
+    {% if tool.id in ('remove', 'extract', 'rotate') %}
+    <section class="card" data-pages-card hidden>
+      <div class="card-head"><h2>{{ icon('grid') }} Pages</h2>
+        <div class="pdf-pages-bar">
+          <button class="btn btn-ghost btn-sm" type="button" data-pick="all">All</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-pick="none">None</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-pick="odd">Odd</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-pick="even">Even</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-pick="invert">Invert</button>
+        </div></div>
+      <p class="help">{% if tool.id == 'remove' %}Click the pages to remove (they turn red). Shift-click picks a run of pages.{% elif tool.id == 'extract' %}Click the pages to take out. Shift-click picks a run; the order is the page order unless you type it in the box.{% else %}Click the pages to turn; none ticked = every page.{% endif %}</p>
+      <div class="pdf-pages" data-pages data-mode="{{ 'off' if tool.id == 'remove' else 'on' }}"></div>
+    </section>
+    {% endif %}
+
+    {% if tool.preview %}
+    <section class="card" data-preview-card hidden>
+      <div class="card-head"><h2>{{ icon('eye') }} Preview</h2><span class="muted small">updates as you change the options</span></div>
+      <div class="pdf-preview" data-pdf-preview><img alt="Preview of the page with the options applied" data-preview-img></div>
+      <div class="pdf-preview-nav">
+        <button class="btn btn-ghost btn-sm" type="button" data-preview-step="-1" aria-label="Previous page">‹</button>
+        <span class="muted small" data-preview-label>Page 1</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-preview-step="1" aria-label="Next page">›</button>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="pdf-side">
+    <section class="card pdf-result" data-result hidden></section>
+    <section class="card" data-options-card>
+      <div class="card-head"><h2>{{ icon('settings') }} Options</h2></div>
+      <form class="pdf-options" data-options novalidate>
+
+      {% if tool.id == 'merge' %}
+        <label class="field"><span>Bookmarks</span>
+          <select name="bookmarks">
+            <option value="files">A bookmark per file (+ their own)</option>
+            <option value="keep">Keep the files' own bookmarks</option>
+            <option value="none">No bookmarks</option>
+          </select></label>
+        <label class="field"><span>Pictures among the files</span>
+          <select name="image_size"><option value="match">On A4 pages</option><option value="fit">Page the size of the picture</option></select></label>
+        <label class="check"><input type="checkbox" name="odd_blank"> <span>Add a blank page after files with an odd number of pages <span class="help">(double-sided printing: each file starts on a new sheet)</span></span></label>
+
+      {% elif tool.id == 'split' %}
+        {{ seg('mode', [('ranges', 'Ranges'), ('every', 'Every N pages'), ('each', 'Each page'), ('bookmarks', 'Chapters')], 'ranges', 'Split by') }}
+        <label class="field" data-when="mode=ranges"><span>Parts</span>
+          <textarea name="ranges" rows="3" placeholder="1-10, 11-25, 26-last">1-</textarea>
+          <span class="help">Each part separated by a comma or a new line becomes one PDF. Example: <code>1-10, 11-25, 26-last</code></span></label>
+        <label class="field" data-when="mode=every"><span>Pages in each part</span><input type="number" name="every" min="1" value="10"></label>
+        <p class="pdf-note" data-when="mode=each">Every page becomes its own PDF. More than {{ 20 }} files? Download them together as a ZIP.</p>
+        <label class="field" data-when="mode=bookmarks"><span>Split at</span>
+          <select name="level"><option value="1">Top-level bookmarks (chapters / papers)</option><option value="2">Also second level (topics)</option></select>
+</label>
+
+      {% elif tool.id == 'organize' %}
+        <p class="pdf-note">Opens every page as a picture: drag pages into a new order, rotate, delete, duplicate, add blank pages or pages from other PDFs, then save as a new PDF. You can choose several PDFs to mix their pages.</p>
+
+      {% elif tool.id == 'remove' %}
+        {{ pages_field('Pages to remove', 'Click pages on the left, or type them: 1-3, 7, last.') }}
+
+      {% elif tool.id == 'extract' %}
+        {{ pages_field('Pages to take out', 'In the order typed: “5, 1-3” puts page 5 first.') }}
+        <label class="check"><input type="checkbox" name="separate"> <span>Each page as its own PDF</span></label>
+
+      {% elif tool.id == 'rotate' %}
+        {{ seg('angle', [('90', '↻ 90° right'), ('180', '180°'), ('270', '↺ 90° left')], '90', 'Turn by') }}
+        {{ pages_field('Pages', 'Empty = every page.') }}
+        <label class="field"><span>Only</span><select name="only"><option value="all">Every chosen page</option><option value="portrait">Only portrait (tall) pages</option><option value="landscape">Only landscape (wide) pages</option></select></label>
+
+      {% elif tool.id == 'insert' %}
+        {{ seg('what', [('blank', 'Blank pages'), ('file', 'Another PDF or picture')], 'blank', 'Insert') }}
+        <label class="field" data-when="what=blank"><span>How many blank pages</span><input type="number" name="count" min="1" max="500" value="1"></label>
+        <div class="field" data-when="what=file"><span>File to insert</span>
+          <select name="source_file" data-file-select="any"><option value="">Choose from My files…</option></select>
+          <span class="help">Upload it first (left) if it is not in the list; it can also be a picture.</span></div>
+        <label class="field" data-when="what=file"><span>Its pages</span><input type="text" name="source_pages" placeholder="all"></label>
+        {{ seg('where', [('start', 'At the start'), ('end', 'At the end'), ('after', 'After page…'), ('every', 'After every N pages')], 'end', 'Where') }}
+        <label class="field" data-when="where=after"><span>After page</span><input type="number" name="after" min="0" value="1"><span class="help">0 = before the first page</span></label>
+        <label class="field" data-when="where=every"><span>Every how many pages</span><input type="number" name="step" min="1" value="1"><span class="help">Blank pages only: e.g. a notes page after each page.</span></label>
+
+      {% elif tool.id == 'compress' %}
+        <div class="pdf-level" role="radiogroup" aria-label="Compression">
+          <label><input type="radio" name="level" value="low"> <strong>Light</strong><small>Pictures untouched; unused data and font parts removed. Same quality.</small></label>
+          <label><input type="radio" name="level" value="medium" checked> <strong>Recommended</strong><small>Pictures above 180 dpi brought to 150 dpi. Good for screens and printing.</small></label>
+          <label><input type="radio" name="level" value="high"> <strong>Strong</strong><small>Pictures to 100 dpi, JPEG quality 55. For WhatsApp/Messenger sharing.</small></label>
+          <label><input type="radio" name="level" value="extreme"> <strong>Extreme</strong><small>Pictures to 72 dpi, quality 40. Smallest; scans get soft.</small></label>
+          <label><input type="radio" name="level" value="custom"> <strong>My own</strong><small>Choose the resolution and quality.</small></label>
+        </div>
+        <div class="pdf-row" data-when="level=custom">
+          <label class="field"><span>Pictures to (dpi)</span><input type="number" name="dpi" min="36" max="600" value="120"></label>
+          <label class="field"><span>JPEG quality</span>{{ slider('quality', 10, 95, 65, '') }}</label>
+        </div>
+        <label class="check"><input type="checkbox" name="grey"> <span>Grey pictures <span class="help">(colour photos and scans become black &amp; white: smaller, good for printing)</span></span></label>
+        <label class="check"><input type="checkbox" name="fonts" checked> <span>Keep only the letters used of each font</span></label>
+        <label class="check"><input type="checkbox" name="strip"> <span>Remove title, author and other properties</span></label>
+
+      {% elif tool.id == 'repair' %}
+        <p class="pdf-note">Opens the PDF the way a careful reader does, rebuilds its broken parts (cross-reference table, streams) and saves a clean copy. Use it when a PDF does not open, prints blank pages or another tool says it is damaged.</p>
+
+      {% elif tool.id == 'ocr' %}
+        {{ seg('engine', [('tesseract', 'Tesseract (on this computer)'), ('ai', 'AI (Gemini / Claude)')], 'tesseract' if report.tesseract.ok else 'ai', 'Engine') }}
+        <div data-when="engine=tesseract"><fieldset>
+        {% if report.tesseract.ok %}
+          <div class="field"><span>Languages on the page <span class="help">(tick all that appear)</span></span>
+            <div class="chip-row pdf-langs">{% for lang in languages %}<label class="check"><input type="checkbox" name="language" value="{{ lang }}"{% if lang in ('eng', 'ben') %} checked{% endif %}> {{ language_names.get(lang, lang) }}</label>{% endfor %}</div>
+            <span class="help">Missing one? <a class="link" href="/settings#ocr">Add OCR languages</a> (100+ available).</span></div>
+          <label class="field"><span>Page layout</span>
+            <select name="layout"><option value="auto">Automatic (most pages)</option><option value="column">One column of text</option><option value="block">One block (forms, worksheets, question papers)</option><option value="sparse">Scattered text (tables, posters, diagrams)</option><option value="line">A single line</option></select></label>
+          <label class="field"><span>Clean the scan first</span>
+            <select name="clean"><option value="none">No cleaning</option><option value="auto" selected>Grey + contrast (recommended)</option><option value="strong">Strong: remove noise, pure black &amp; white (phone photos, faded copies)</option></select></label>
+          <label class="check"><input type="checkbox" name="deskew" checked> <span>Straighten tilted pages</span></label>
+          <label class="check"><input type="checkbox" name="rotate" checked> <span>Turn sideways or upside-down pages upright</span></label>
+          <label class="field"><span>Reading resolution</span><select name="dpi"><option value="200">200 dpi (faster)</option><option value="300" selected>300 dpi (recommended)</option><option value="400">400 dpi (small print)</option></select></label>
+          {{ seg('mode', [('skip', 'Skip pages that already have text'), ('all', 'Read every page')], 'skip', 'Pages with text') }}
+          <p class="help" data-when="mode=all">Use “Read every page” when text copied from the PDF comes out garbled (common with Bengali PDFs).</p>
+          <label class="field"><span>Result</span>
+            <select name="output"><option value="pdf">Searchable PDF (looks the same, text can be searched and copied)</option><option value="pdf_txt">Searchable PDF + a text file</option><option value="docx">Word file (.docx)</option><option value="txt">Plain text (.txt)</option></select></label>
+          <label class="field" data-when="output=pdf|pdf_txt"><span>Page pictures</span>
+            <select name="keep"><option value="original">Keep the original look</option><option value="cleaned">Use the cleaned black &amp; white pages (smaller, crisper)</option></select></label>
+        {% else %}
+          <div class="pdf-note"><strong>Tesseract (the free OCR program) is not installed on this computer.</strong> Install it with:
+            <pre>{{ report.tesseract.install }}</pre> then reload this page — or use the AI engine above. <a class="link" href="{{ report.tesseract.link }}" target="_blank" rel="noopener">Installation guide</a></div>
+        {% endif %}
+        </fieldset></div>
+        <div data-when="engine=ai"><fieldset>
+          <p class="pdf-note">For hard pages: Bengali with math, handwriting, complex tables, poor photos. Each page is sent as a picture to the AI you choose, with <strong>your own API key</strong>; the result is text with tables and formulas (LaTeX). Gemini has a free tier.</p>
+          <div class="pdf-row">
+            <label class="field"><span>AI</span><select name="ai_provider" data-ai-provider>{% for k, v in ai_providers.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+            <label class="field"><span>Model</span><select name="ai_model" data-ai-model></select></label>
+          </div>
+          <script type="application/json" id="ai-models">{{ ai_models_json|safe }}</script>
+          <label class="field"><span>API key</span><span class="pdf-pw"><input type="password" name="ai_key" autocomplete="off" data-ai-key placeholder="{{ 'optional: the key set on this computer is used' if server_keys.gemini or server_keys.claude else 'paste your key (kept in this browser only)' }}">
+            <button class="btn btn-ghost btn-sm" type="button" data-show-pw>Show</button></span>
+            <span class="help">Saved in this browser only, sent with each reading, never stored on the server. Get one: <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Gemini</a> · <a class="link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Claude</a></span></label>
+          <label class="field"><span>Extra instruction <span class="help">(optional)</span></span><input type="text" name="ai_note" placeholder="e.g. it is a physics question paper; keep the question numbers"></label>
+          <label class="field"><span>Result</span><select name="output_ai" data-output-ai><option value="md">Markdown (.md, keeps tables and formulas)</option><option value="docx">Word file (.docx)</option><option value="txt">Plain text (.txt)</option></select></label>
+        </fieldset></div>
+        {{ pages_field() }}
+
+      {% elif tool.id == 'pdf2word' %}
+        <div class="pdf-level" role="radiogroup" aria-label="Kind of Word file">
+          <label><input type="radio" name="mode" value="layout"{% if report.exact_word %} checked{% else %} disabled{% endif %}> <strong>Keep the layout</strong><small>Columns, tables, pictures and fonts placed like the PDF.{% if not report.exact_word %} (Needs the pdf2docx package.){% endif %}</small></label>
+          <label><input type="radio" name="mode" value="text"{% if not report.exact_word %} checked{% endif %}> <strong>Flowing text</strong><small>Headings, paragraphs and pictures, one after another: the easiest to edit.</small></label>
+        </div>
+        {{ pages_field() }}
+        <p class="pdf-note">Scanned pages have no text to convert: use <a class="link" href="/tools/ocr">OCR</a> with “Word file” as the result.</p>
+
+      {% elif tool.id == 'pdf2excel' %}
+        {{ seg('find', [('lines', 'Tables with lines'), ('text', 'Tables without lines')], 'lines', 'Find tables') }}
+        {{ seg('layout', [('sheets', 'A sheet per table'), ('one', 'All on one sheet')], 'sheets', 'Sheets') }}
+        <label class="check"><input type="checkbox" name="header" checked> <span>The first row is a header (bold, frozen)</span></label>
+        <label class="check"><input type="checkbox" name="fallback" checked> <span>No table found? Put each text line in a row</span></label>
+        {{ pages_field() }}
+        <p class="help">Numbers become real numbers you can add up.</p>
+
+      {% elif tool.id == 'pdf2ppt' %}
+        <label class="field"><span>Picture quality</span><select name="dpi"><option value="110">Small file</option><option value="150" selected>Sharp (recommended)</option><option value="220">Very sharp (projectors, 4K)</option></select></label>
+        <label class="check"><input type="checkbox" name="notes" checked> <span>Put each page's text in the speaker notes</span></label>
+        {{ pages_field() }}
+
+      {% elif tool.id == 'office2pdf' %}
+        {% if not report.libreoffice.ok %}
+        <div class="pdf-note"><strong>This tool uses LibreOffice (free), which is not installed on this computer.</strong> Install it with:
+          <pre>{{ report.libreoffice.install }}</pre> then reload this page. <a class="link" href="{{ report.libreoffice.link }}" target="_blank" rel="noopener">Download page</a></div>
+        {% endif %}
+        <label class="check"><input type="checkbox" name="merge"> <span>Join all files into one PDF (a bookmark per file)</span></label>
+        <p class="help">Word (.docx, .doc, .odt, .rtf), Excel (.xlsx, .xls, .ods, .csv) and PowerPoint (.pptx, .ppt, .odp).</p>
+
+      {% elif tool.id == 'text2pdf' %}
+        <div class="field"><span>Or type / paste here</span>
+          <textarea rows="8" data-typed placeholder="# Title&#10;&#10;Write or paste text, Markdown or HTML. বাংলা works."></textarea>
+          <div class="pdf-row"><select data-typed-format aria-label="What it is"><option value="markdown">Markdown</option><option value="plain">Plain text</option><option value="html">HTML</option></select>
+            <button class="btn btn-secondary btn-sm" type="button" data-typed-add>{{ icon('plus') }} Use this text</button></div></div>
+        <div class="pdf-row">
+          <label class="field"><span>Font</span><select name="font">{% for k, v in fonts.items() %}<option value="{{ k }}"{% if k == 'serif' %} selected{% endif %}>{{ v.split(' (')[0] }}</option>{% endfor %}</select></label>
+          <label class="field"><span>Size (pt)</span><input type="number" name="size" min="6" max="40" value="12"></label>
+        </div>
+        <div class="pdf-row">
+          <label class="field"><span>Paper</span><select name="paper">{% for p in paper %}<option value="{{ p }}"{% if p == 'A4' %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>
+          <label class="field"><span>Margin (mm)</span><input type="number" name="margin" min="5" max="60" value="20"></label>
+        </div>
+        {{ seg('orientation', [('portrait', 'Portrait'), ('landscape', 'Landscape')], 'portrait', 'Orientation') }}
+        <label class="field"><span>.txt files are</span><select name="format"><option value="auto">Plain text</option><option value="markdown">Markdown</option></select></label>
+        <label class="check"><input type="checkbox" name="justify"> <span>Justify paragraphs</span></label>
+        <label class="check"><input type="checkbox" name="merge" checked> <span>All files in one PDF</span></label>
+
+      {% elif tool.id == 'redact' %}
+        <div class="field"><span>Find and black out</span>
+          {% for k, label in redact_patterns.items() %}<label class="check"><input type="checkbox" name="find" value="{{ k }}"{% if k in ('email', 'phone') %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+        <label class="field"><span>Also these words or names <span class="help">(one per line)</span></span><textarea name="words" rows="3" placeholder="Rahim Uddin&#10;Account 0123"></textarea></label>
+        <details class="style-section"><summary>Advanced: your own pattern</summary>
+          <div class="form-grid form-grid-1"><label class="field"><span>Regular expression</span><input type="text" name="pattern" placeholder="e.g. Roll[: ]*\d+"></label>
+            <label class="check"><input type="checkbox" name="case"> Match capital/small letters exactly</label></div></details>
+        {{ seg('mode', [('apply', 'Black out now'), ('mark', 'Only mark them for checking')], 'apply', 'Mode') }}
+        <label class="field" data-when="mode=apply"><span>Box colour</span><input type="color" name="fill" value="#000000"></label>
+        {{ pages_field() }}
+        <p class="pdf-note">Redaction <strong>removes</strong> the text and the picture parts under each box from the file — it cannot be copied or recovered. Scanned pages need OCR first.</p>
+
+      {% elif tool.id == 'sanitize' %}
+        <div class="field"><span>Remove</span>
+          {% for k, label in sanitize.items() %}<label class="check"><input type="checkbox" name="{{ k }}"{% if k not in ('links', 'comments', 'hidden_text') %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+        <p class="pdf-note">Use it before sharing a PDF publicly: hidden scripts, attached files and personal details are taken out; the pages look the same.</p>
+
+      {% elif tool.id == 'img2pdf' %}
+        <label class="field"><span>Page size</span>
+          <select name="size">{% for p in paper %}<option value="{{ p }}"{% if p == 'A4' %} selected{% endif %}>{{ p }}</option>{% endfor %}<option value="fit">Same as the picture</option></select></label>
+        {{ seg('orientation', [('auto', 'Automatic'), ('portrait', 'Portrait'), ('landscape', 'Landscape')], 'auto', 'Orientation') }}
+        {{ seg('margin', [('none', 'No margin'), ('small', 'Small'), ('big', 'Big')], 'small', 'Margin') }}
+        {{ seg('merge', [('one', 'All in one PDF'), ('each', 'A PDF per picture')], 'one', 'Files') }}
+        <p class="help">Phone photos taken sideways are turned upright. JPGs go in as they are (no quality lost).</p>
+
+      {% elif tool.id == 'pdf2img' %}
+        {{ seg('format', [('png', 'PNG'), ('jpg', 'JPG')], 'png', 'Format') }}
+        <label class="field"><span>Resolution</span>
+          <select name="dpi"><option value="72">72 dpi · small, for screens</option><option value="150" selected>150 dpi · sharp on screens</option><option value="200">200 dpi · slides, Facebook posts</option><option value="300">300 dpi · printing</option><option value="600">600 dpi · very large</option></select></label>
+        <label class="field" data-when="format=jpg"><span>JPG quality</span>{{ slider('quality', 30, 100, 88, '') }}</label>
+        {{ pages_field() }}
+        <label class="check"><input type="checkbox" name="grey"> <span>Black &amp; white (grey)</span></label>
+        <p class="help">More than 20 pages come as one ZIP file.</p>
+
+      {% elif tool.id == 'pdf2text' %}
+        {{ pages_field() }}
+        <label class="check"><input type="checkbox" name="page_marks" checked> <span>Mark where each page starts</span></label>
+        <label class="check"><input type="checkbox" name="sort" checked> <span>Read in visual order (top to bottom, left to right)</span></label>
+        <p class="pdf-note">Bengali in typeset PDFs is often stored with broken joined letters, so the text may need fixing. Scans have no text: run OCR first.</p>
+
+      {% elif tool.id == 'extract_images' %}
+        <label class="field"><span>Smallest picture to keep (pixels)</span><input type="number" name="min_px" min="1" max="4000" value="80"><span class="help">Skips tiny icons and lines.</span></label>
+        {{ pages_field() }}
+
+      {% elif tool.id == 'edit' %}
+        <p class="pdf-note">Opens the PDF in the editor: add text (বাংলা too), pictures and signatures, rectangles, circles, lines, arrows, free drawing, highlights, whiteout (cover) and redaction (really removes what is under it). The result is saved as a new PDF.</p>
+
+      {% elif tool.id == 'watermark' %}
+        {{ seg('kind', [('text', 'Text'), ('image', 'Logo / picture')], 'text', 'Watermark') }}
+        <div data-when="kind=text">
+          <fieldset>
+            <label class="field"><span>Text</span><textarea name="text" rows="2" placeholder="CONFIDENTIAL">CONFIDENTIAL</textarea><span class="help">বাংলা works. A new line makes a second line.</span></label>
+            <div class="pdf-row">
+              <label class="field"><span>Font</span><select name="font">{% for k, v in fonts.items() %}<option value="{{ k }}">{{ v.split(' (')[0] }}</option>{% endfor %}</select></label>
+              <label class="field"><span>Size (pt)</span><input type="number" name="size" min="6" max="300" value="60"></label>
+            </div>
+            <div class="pdf-row">
+              <label class="field"><span>Colour</span><input type="color" name="color" value="#9aa0a6"></label>
+              <label class="check"><input type="checkbox" name="bold" checked> Bold</label>
+            </div>
+          </fieldset>
+        </div>
+        <div data-when="kind=image">
+          <fieldset>
+            <div class="field"><span>Logo or picture</span>
+              <select name="image_file" data-file-select="image"><option value="">Choose a picture from My files…</option></select>
+              <span class="help">Upload your logo first (left, or My files). A JPG's white background is made see-through.</span></div>
+            <label class="field"><span>Size (% of the page width)</span>{{ slider('scale', 5, 100, 45, '%') }}</label>
+            <label class="check"><input type="checkbox" name="grey"> Grey</label>
+          </fieldset>
+        </div>
+        <label class="field"><span>See-through</span>{{ slider('opacity', 3, 100, 20, '%') }}</label>
+        <label class="field"><span>Angle</span>{{ slider('angle', -90, 90, 45, '°', 5) }}</label>
+        <div class="field"><span>Position</span>
+          <div class="pdf-spots-wrap">{{ spots('position', 'c') }}
+            <label class="check"><input type="radio" name="position" value="tiled"> Repeated over the page</label></div></div>
+        <div class="pdf-row" data-when="position=tiled">
+          <label class="field"><span>Rows</span><input type="number" name="rows" min="1" max="8" value="3"></label>
+          <label class="field"><span>Columns</span><input type="number" name="cols" min="1" max="8" value="2"></label>
+        </div>
+        {{ seg('layer', [('over', 'Over the content'), ('under', 'Behind the content')], 'over', 'Layer') }}
+        <div class="pdf-row">{{ pages_field('Pages', 'Empty = every page.') }}{{ pages_field('Not on pages', 'e.g. 1 (the cover)', 'skip') }}</div>
+
+      {% elif tool.id == 'numbers' %}
+        <div class="field"><span>Page number</span>
+          <div class="pdf-spots-wrap">{{ spots('position', 'bc', only=['tl', 'tc', 'tr', 'bl', 'bc', 'br']) }}
+            <label class="check"><input type="radio" name="position" value="none"> No number (only header/footer)</label></div></div>
+        <label class="field"><span>Format</span>
+          <select name="format">{% for k, v in number_formats.items() %}<option value="{{ k }}">{{ v.replace('{n}', '7').replace('{total}', '24') if v else 'My own…' }}</option>{% endfor %}</select></label>
+        <label class="field" data-when="format=custom"><span>My own format</span><input type="text" name="custom" value="My Notes · {n}"><span class="help">{n} = number, {total} = last number, {file} = file name, {date} = today</span></label>
+        <div class="pdf-row">
+          <label class="field"><span>Digits</span><select name="digits"><option value="latin">1 2 3</option><option value="bengali">১ ২ ৩</option></select></label>
+          <label class="field"><span>Start counting at</span><input type="number" name="start" value="1"></label>
+        </div>
+        <label class="field"><span>Numbering starts on page</span><input type="number" name="first" min="1" value="1"><span class="help">Pages before it get no number (cover, contents).</span></label>
+        <label class="field"><span>Header text</span><input type="text" name="header" placeholder="e.g. Chapter 3 · Physics notes"></label>
+        {{ seg('header_align', [('left', 'Left'), ('center', 'Centre'), ('right', 'Right')], 'center', 'Header position') }}
+        <label class="field"><span>Footer text</span><input type="text" name="footer" placeholder="e.g. www.physicshunters.com"></label>
+        {{ seg('footer_align', [('left', 'Left'), ('center', 'Centre'), ('right', 'Right')], 'left', 'Footer position') }}
+        <div class="pdf-row">
+          <label class="field"><span>Font</span><select name="font">{% for k, v in fonts.items() %}<option value="{{ k }}">{{ v.split(' (')[0] }}</option>{% endfor %}</select></label>
+          <label class="field"><span>Size (pt)</span><input type="number" name="size" min="5" max="72" value="11"></label>
+        </div>
+        <div class="pdf-row">
+          <label class="field"><span>Colour</span><input type="color" name="color" value="#333333"></label>
+          <label class="field"><span>Distance from edge (mm)</span><input type="number" name="margin" min="2" max="60" value="10"></label>
+        </div>
+        <label class="check"><input type="checkbox" name="bold"> Bold</label>
+        <label class="check"><input type="checkbox" name="mirror"> <span>Mirror on even pages <span class="help">(left ⇄ right, for printed books)</span></span></label>
+        <label class="check"><input type="checkbox" name="line"> <span>A thin line under the header / over the footer</span></label>
+        <div class="pdf-row">{{ pages_field('Pages', 'Empty = every page.') }}{{ pages_field('Not on pages', 'e.g. 1', 'skip') }}</div>
+
+      {% elif tool.id == 'replace' %}
+        <label class="field"><span>Find</span><input type="text" name="find" placeholder="e.g. 2025" required></label>
+        <label class="field"><span>Replace with</span><input type="text" name="replace" placeholder="e.g. 2026 (empty = remove)"></label>
+        <label class="check"><input type="checkbox" name="case"> Match capital/small letters</label>
+        <label class="field"><span>Font of the new text</span>
+          <select name="font"><option value="match">Like the old text (serif or sans)</option>{% for k, v in fonts.items() %}<option value="{{ k }}">{{ v.split(' (')[0] }}</option>{% endfor %}</select></label>
+        {{ pages_field() }}
+        <p class="pdf-note">The old text is really removed and the new text is written in its place, same size and colour. A longer replacement prints a little smaller so it does not run into the next word. Works best with English words and numbers.</p>
+
+      {% elif tool.id == 'crop' %}
+        {{ seg('mode', [('margins', 'Cut margins'), ('auto', 'Cut white border automatically')], 'margins', 'Crop') }}
+        <div class="pdf-row pdf-row-4" data-when="mode=margins">
+          {% for k, t in [('top', 'Top'), ('right', 'Right'), ('bottom', 'Bottom'), ('left', 'Left')] %}
+          <label class="field"><span>{{ t }} (mm)</span><input type="number" name="{{ k }}" min="0" max="500" step="0.5" value="0"></label>{% endfor %}
+        </div>
+        <label class="field" data-when="mode=auto"><span>Keep around the content (mm)</span><input type="number" name="pad" min="0" max="100" value="5"></label>
+        {{ pages_field() }}
+        <p class="help">Cropping hides the cut part (the PDF keeps it, as every PDF program does).</p>
+
+      {% elif tool.id == 'resize' %}
+        <label class="field"><span>New page size</span>
+          <select name="size">{% for p in paper %}<option value="{{ p }}"{% if p == 'A4' %} selected{% endif %}>{{ p }}</option>{% endfor %}<option value="custom">My own size…</option></select></label>
+        <div class="pdf-row" data-when="size=custom">
+          <label class="field"><span>Width (mm)</span><input type="number" name="width" min="20" max="2000" value="210"></label>
+          <label class="field"><span>Height (mm)</span><input type="number" name="height" min="20" max="2000" value="297"></label>
+        </div>
+        {{ seg('orientation', [('auto', 'Like each page'), ('portrait', 'Portrait'), ('landscape', 'Landscape')], 'auto', 'Orientation') }}
+        <label class="field"><span>Margin (mm)</span><input type="number" name="margin" min="0" max="100" value="0"></label>
+        <p class="help">Each page is scaled to fit and centred. Links inside the PDF are not kept.</p>
+
+      {% elif tool.id == 'nup' %}
+        {{ seg('mode', [('grid', 'Pages per sheet'), ('booklet', 'Booklet (fold in half)')], 'grid', 'Layout') }}
+        <div data-when="mode=grid"><fieldset>
+          {{ seg('per_sheet', [('2', '2'), ('4', '4'), ('6', '6'), ('8', '8'), ('9', '9'), ('16', '16')], '2', 'Pages per sheet') }}
+          <label class="field"><span>Order</span><select name="order"><option value="rows">Across, then down</option><option value="columns">Down, then across</option></select></label>
+        </fieldset></div>
+        <p class="pdf-note" data-when="mode=booklet">Pages are arranged for a folded booklet: print double-sided, <strong>flip on the short edge</strong>, stack and fold in the middle. Blank pages are added to make a multiple of 4.</p>
+        <div class="pdf-row">
+          <label class="field"><span>Sheet</span><select name="sheet">{% for p in paper %}<option value="{{ p }}"{% if p == 'A4' %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>
+          <label class="field"><span>Margin (mm)</span><input type="number" name="margin" min="0" max="60" value="8"></label>
+        </div>
+        <label class="field"><span>Gap between pages (mm)</span><input type="number" name="gap" min="0" max="60" value="4"></label>
+        <label class="check"><input type="checkbox" name="borders"> A thin border round each page</label>
+        {{ pages_field() }}
+
+      {% elif tool.id == 'protect' %}
+        <label class="field"><span>Password to open</span><span class="pdf-pw"><input type="password" name="password" autocomplete="new-password" minlength="4" placeholder="at least 4 characters">
+          <button class="btn btn-ghost btn-sm" type="button" data-show-pw>Show</button></span></label>
+        <label class="field"><span>Type it again</span><input type="password" name="password2" autocomplete="new-password" data-no-send></label>
+        <div class="field"><span>Allowed without the permissions password</span>
+          {% for k, label in permissions.items() %}<label class="check"><input type="checkbox" name="allow_{{ k }}"{% if k == 'print' %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+        <details class="style-section"><summary>Permissions password (optional)</summary>
+          <div class="form-grid form-grid-1"><label class="field"><span>Permissions password</span><input type="password" name="owner_password" autocomplete="new-password">
+            <span class="help">Lets you lift the limits later. Empty: a random one nobody knows.</span></label></div></details>
+        <p class="pdf-note">AES-256, the strongest PDF lock. <strong>Keep the password safe</strong>: it is not saved anywhere, and a lost password cannot be recovered.</p>
+
+      {% elif tool.id == 'unlock' %}
+        <label class="field"><span>Password</span><span class="pdf-pw"><input type="password" name="password" autocomplete="off" placeholder="leave empty if it opens without one">
+          <button class="btn btn-ghost btn-sm" type="button" data-show-pw>Show</button></span></label>
+        <p class="pdf-note">Removes the password and the print/copy/edit limits. You need the password if the PDF asks for one to open; PDFs that only limit printing or copying open without it.</p>
+
+      {% elif tool.id == 'metadata' %}
+        {% for k, t in [('title', 'Title'), ('author', 'Author'), ('subject', 'Subject'), ('keywords', 'Keywords'), ('creator', 'Made with'), ('producer', 'PDF producer')] %}
+        <label class="field" data-when="clear!=on"><span>{{ t }}</span><input type="text" name="{{ k }}" data-meta="{{ k }}"></label>{% endfor %}
+        <label class="check"><input type="checkbox" name="clear"> Remove every property</label>
+        <p class="help">The title shows in the browser tab and in PDF readers instead of the file name.</p>
+
+      {% elif tool.id == 'flatten' %}
+        <label class="check"><input type="checkbox" name="annots" checked> Comments, highlights, stamps, drawings</label>
+        <label class="check"><input type="checkbox" name="widgets" checked> Form fields (their filled-in values stay, but cannot be changed)</label>
+        <p class="pdf-note">Everything ticked becomes part of the page: it prints the same everywhere and can no longer be moved or edited.</p>
+      {% endif %}
+
+        <div data-run-progress hidden>
+          <div class="progress-head"><span class="small" data-progress-label>Working…</span><span class="muted small" data-progress-time></span></div>
+          <div class="progress is-active"><div class="progress-fill" data-progress-fill></div></div>
+        </div>
+        <p class="error-text small" data-run-error hidden></p>
+        <button class="btn btn-primary btn-lg pdf-run-btn" type="submit" data-run>{{ icon(tool.icon) }} {{ run_labels.get(tool.id, tool.label) }}</button>
+      </form>
+    </section>
+    <details class="card pdf-code" data-code-card>
+      <summary><h2>{{ icon('api') }} Use this from code</h2></summary>
+      <p class="help">The same tool, with the options above, from a script (REST API) or the terminal. <a class="link" href="/developers">More</a></p>
+      <div class="code-block"><pre id="code-curl" data-code-curl></pre><button class="btn btn-ghost btn-sm" type="button" data-copy="code-curl">Copy</button></div>
+      <div class="code-block"><pre id="code-cli" data-code-cli></pre><button class="btn btn-ghost btn-sm" type="button" data-copy="code-cli">Copy</button></div>
+    </details>
+  </aside>
+</div>
+{% include "_parts.html" %}
+{% endblock %}

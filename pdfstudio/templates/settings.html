@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Settings{% endblock %}
+{% block head %}<script src="/static/settings.js" defer></script>{% endblock %}
+{% block heading %}<h1>Settings &amp; system check</h1><span class="muted small">what this {{ 'server' if public else 'computer' }} can do, OCR languages and AI reading</span>{% endblock %}
+{% block content %}
+<div class="stack" data-settings>
+<section class="card">
+  <div class="card-head"><h2>{{ icon('check') }} System check</h2><span class="muted small">{{ report.platform }} · Python {{ report.python }} · PyMuPDF {{ report.pymupdf }}</span></div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Part</th><th>Status</th><th>Used by</th><th>How to add it</th></tr></thead>
+    <tbody>
+      <tr><td><strong>PDF engine</strong> (PyMuPDF)</td><td class="status-ok">Ready</td><td>every tool</td><td>—</td></tr>
+      <tr><td><strong>Tesseract OCR</strong></td>
+        <td>{% if report.tesseract.ok %}<span class="status-ok">Ready</span> <span class="muted small">v{{ report.tesseract.version }}{% if not public %} · {{ report.tesseract.path }}{% endif %}</span>{% else %}<span class="status-missing">Not installed</span>{% endif %}</td>
+        <td>OCR (offline)</td>
+        <td>{% if report.tesseract.ok %}—{% else %}<code>{{ report.tesseract.install }}</code> · <a class="link" href="{{ report.tesseract.link }}" target="_blank" rel="noopener">guide</a>{% endif %}</td></tr>
+      <tr><td><strong>LibreOffice</strong></td>
+        <td>{% if report.libreoffice.ok %}<span class="status-ok">Ready</span>{% if not public %} <span class="muted small">{{ report.libreoffice.path }}</span>{% endif %}{% else %}<span class="status-missing">Not installed</span>{% endif %}</td>
+        <td>Office to PDF</td>
+        <td>{% if report.libreoffice.ok %}—{% else %}<code>{{ report.libreoffice.install }}</code> · <a class="link" href="{{ report.libreoffice.link }}" target="_blank" rel="noopener">download</a>{% endif %}</td></tr>
+      <tr><td><strong>Exact-layout Word</strong> (pdf2docx)</td>
+        <td>{% if report.exact_word %}<span class="status-ok">Ready</span>{% else %}<span class="status-missing">Not installed</span>{% endif %}</td>
+        <td>PDF to Word (keep layout)</td><td>{% if report.exact_word %}—{% else %}<code>pip install pdf2docx</code>{% endif %}</td></tr>
+    </tbody>
+  </table></div>
+  <p class="help">Everything else (merge, split, compress, edit text, convert to Excel/PowerPoint, protect, redact…) works with nothing extra installed. After installing a program, reload this page.</p>
+</section>
+
+<section class="card" id="ocr">
+  <div class="card-head"><h2>{{ icon('scan') }} OCR languages</h2><span class="muted small">{{ report.tesseract.languages|length }} installed</span></div>
+  {% if report.tesseract.ok %}
+  <div class="chip-row">{% for lang in report.tesseract.languages %}<span class="tag">{{ language_names.get(lang, lang) }}</span>{% endfor %}</div>
+  {% if settings.allow_downloads %}
+  <form class="inline-form" data-add-language>
+    <select name="code" aria-label="Language">
+      <option value="">Add a language…</option>
+      {% for code, name in offer %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+    </select>
+    <input type="text" name="custom" placeholder="or a code: tam, chi_sim…" aria-label="Language code" pattern="[a-z_]{3,8}">
+    <select name="quality" aria-label="Accuracy"><option value="best">Most accurate (bigger, slower)</option><option value="fast">Fast (smaller)</option></select>
+    <button class="btn btn-primary" type="submit">{{ icon('download') }} Add</button>
+  </form>
+  <p class="help">Downloaded once from the Tesseract project on GitHub (a few MB) into this app's folder. Full list of codes: <a class="link" href="https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html" target="_blank" rel="noopener">tessdoc</a>.</p>
+  <p class="error-text small" data-language-error hidden></p>
+  {% else %}
+  <p class="help">Adding languages is turned off on this server; its owner can add them (PHIPDF_ALLOW_DOWNLOADS=1).</p>
+  {% endif %}
+  {% else %}
+  <p class="pdf-note">Install Tesseract first: <code>{{ report.tesseract.install }}</code></p>
+  {% endif %}
+</section>
+
+<section class="card" id="ai">
+  <div class="card-head"><h2>{{ icon('spark') }} AI reading</h2><span class="muted small">optional · for the hardest scans</span></div>
+  <p class="help">The OCR tool can send pages to an AI model that reads Bengali with math, handwriting and complex tables better than any offline OCR. You use <strong>your own key</strong>: it is saved in this browser only and sent with each reading; this {{ 'server' if public else 'app' }} never stores it.</p>
+  <div class="form-grid">
+    {% for p, label in ai_providers.items() %}
+    <label class="field"><span>{{ label }} API key</span>
+      <span class="pdf-pw"><input type="password" autocomplete="off" data-key-for="{{ p }}" placeholder="not set"><button class="btn btn-ghost btn-sm" type="button" data-show-pw>Show</button></span>
+      <span class="help">{% if p == 'gemini' %}Free tier available: <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">get a key</a>{% else %}<a class="link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">get a key</a> (paid){% endif %}</span></label>
+    {% endfor %}
+  </div>
+  <div class="form-actions"><button class="btn btn-ghost" type="button" data-forget-keys>{{ icon('trash') }} Forget the keys</button>
+    <button class="btn btn-primary" type="button" data-save-keys>{{ icon('check') }} Save in this browser</button></div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>{{ icon('folder') }} Your files</h2></div>
+  <p>{{ totals.n }} file(s), {{ totals.bytes|size }}.
+    {% if public %}{% if keep_hours %}Files are deleted automatically {{ keep_hours|round(1)|string|replace('.0', '') }} hour(s) after they are made.{% endif %} Only you can see them (a private workspace tied to this browser).
+    {% else %}Stored on this computer in <code>{{ data_dir }}</code>.{% endif %}</p>
+  <a class="btn btn-secondary" href="/files">{{ icon('folder') }} Open My files</a>
+</section>
+</div>
+{% endblock %}

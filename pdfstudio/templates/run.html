@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}{{ run.label }}{% endblock %}
+{% block head %}<script src="/static/pdftools.js" defer></script>{% endblock %}
+{% block heading %}<div class="pdf-tool-head"><span class="pdf-tool-icon pdf-g-{{ run.group }}">{{ icon(run.icon or 'pdf') }}</span>
+  <div><h1>{{ run.label }}</h1><span class="muted small">run {{ run.started_at|dt }} · {{ run.inputs|length }} file(s) in</span></div></div>{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/">{{ icon('grid') }} All tools</a>
+{% if tool %}<a class="btn btn-primary" href="/tools/{{ tool.id }}?files={{ run.input_ids|join(',') }}">{{ icon('refresh') }} Run again</a>{% endif %}{% endblock %}
+{% block content %}
+<script type="application/json" id="pdf-run-data">{{ run_json|safe }}</script>
+<div class="two-col" data-pdf-page="run">
+  <section class="card pdf-result" data-result></section>
+  <section class="card">
+    <div class="card-head"><h2>{{ icon('folder') }} What went in</h2></div>
+    <ul class="pdf-outs">
+      {% for f in run.inputs %}
+      <li>{% if f.thumb %}<img src="{{ f.thumb }}" alt="">{% else %}<span class="pdf-chosen-ph">{{ icon('pdf') }}</span>{% endif %}
+        <div class="pdf-out-text"><strong>{{ f.name }}</strong><small>{{ f.pages }} page(s) · {{ f.size|size }}</small>
+          <div class="pdf-out-acts"><a class="btn btn-ghost btn-sm" href="/files/{{ f.id }}/download">{{ icon('download') }} Download</a></div></div></li>
+      {% else %}
+      <li class="muted small">The files that went in were deleted since.</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% include "_parts.html" %}
+{% endblock %}

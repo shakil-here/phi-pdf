@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}My files{% endblock %}
+{% block head %}<script src="/static/pdftools.js" defer></script>{% endblock %}
+{% block heading %}<h1>My files</h1><span class="muted small">uploads and every tool result · tick files to send them to a tool, download or delete them</span>{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/">{{ icon('grid') }} All tools</a>
+<label class="btn btn-primary file-btn">{{ icon('upload') }} Add files
+  <input type="file" multiple accept="{{ accept }}" data-pdf-upload hidden></label>{% endblock %}
+{% block content %}
+<div class="stack" data-pdf-page="files">
+<section class="kpis kpis-5">
+  <div class="kpi kpi-hero"><span class="kpi-label">Files</span><span class="kpi-value">{{ totals.n }}</span>
+    <span class="kpi-sub">{{ totals.pdfs }} PDFs · {{ totals.images }} pictures · {{ totals.office }} Office</span></div>
+  <div class="kpi"><span class="kpi-label">Space</span><span class="kpi-value">{{ totals.bytes|size }}</span><span class="kpi-sub">{% if settings.max_workspace_mb %}of {{ (settings.max_workspace_mb * 1048576)|size }}{% else %}on this computer{% endif %}</span></div>
+  <div class="kpi"><span class="kpi-label">Pages</span><span class="kpi-value">{{ totals.pages|int }}</span><span class="kpi-sub">in all PDFs</span></div>
+  <div class="kpi"><span class="kpi-label">Starred</span><span class="kpi-value">{{ totals.starred }}</span><span class="kpi-sub">{{ 'deleted with the rest after ' ~ keep_hours|round(1)|string|replace('.0', '') ~ ' h' if public and keep_hours else 'never removed by a clean-up' }}</span></div>
+  <div class="kpi"><span class="kpi-label">Tools run</span><span class="kpi-value">{{ totals.runs_done }}</span><span class="kpi-sub">of {{ totals.runs }} started</span></div>
+</section>
+
+<section class="card">
+  <form class="filters" method="get" action="/files">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search by name" aria-label="Search">
+    <select name="kind" aria-label="Kind">
+      {% for value, label in [('', 'Every kind'), ('pdf', 'PDFs'), ('image', 'Pictures'), ('office', 'Word, Excel, PowerPoint'), ('text', 'Text files'), ('zip', 'ZIP files')] %}
+      <option value="{{ value }}"{% if kind == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="sort" aria-label="Order">
+      {% for value, label in [('new', 'Newest first'), ('old', 'Oldest first'), ('name', 'By name'), ('size', 'Biggest first'), ('pages', 'Most pages')] %}
+      <option value="{{ value }}"{% if sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <label class="check"><input type="checkbox" name="starred" value="1"{% if starred %} checked{% endif %}> Starred only</label>
+    <button class="btn btn-secondary" type="submit">Show</button>
+    <span class="muted small">{{ rows|length }} file(s)</span>
+  </form>
+  <div class="pdf-upload-status" data-upload-status hidden></div>
+  <div class="card-head pdf-files-head">
+    <div class="inline-actions">
+      <button class="btn btn-ghost btn-sm" type="button" data-select-all>{{ icon('check') }} Tick all shown</button>
+    </div>
+    <details class="pdf-menu">
+      <summary class="btn btn-ghost btn-sm">{{ icon('trash') }} Clean up</summary>
+      <div class="pdf-menu-list">
+        <div class="pdf-menu-head">Remove files not starred, older than</div>
+        {% for d in cleanup_days %}<button type="button" data-cleanup="{{ d }}">{{ d }} days</button>{% endfor %}
+        <div class="pdf-menu-head">Everything</div>
+        <button type="button" data-delete-all>Delete all my files now</button>
+      </div>
+    </details>
+  </div>
+  <script type="application/json" id="pdf-files-data">{{ rows|tojson }}</script>
+  <div class="pdf-file-grid" data-file-grid></div>
+  {% if not rows %}<p class="pdf-empty">{% if q or kind or starred %}No file matches.{% else %}No files yet: add some with the button above.{% endif %}</p>{% endif %}
+</section>
+{% include "_parts.html" %}
+</div>
+{% endblock %}

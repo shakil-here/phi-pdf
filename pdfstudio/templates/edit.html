@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Edit PDF{% endblock %}
+{% block head %}<link rel="stylesheet" href="/fonts.css"><script src="/static/pdftools.js" defer></script><script src="/static/pdfedit.js" defer></script>{% endblock %}
+{% block heading %}<div class="pdf-tool-head"><span class="pdf-tool-icon pdf-g-edit">{{ icon('edit') }}</span>
+  <div><h1>Edit PDF</h1><span class="muted small">{{ file.name }} · {{ file.pages }} page{{ 's' if file.pages != 1 }}</span></div></div>{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/">{{ icon('grid') }} All tools</a>
+<a class="btn btn-ghost" href="/files/{{ file.id }}/download?inline=1" target="_blank" rel="noopener">{{ icon('eye') }} Original</a>{% endblock %}
+{% block content %}
+<script type="application/json" id="ed-file">{{ file_json|safe }}</script>
+<script type="application/json" id="ed-images">{{ images|tojson }}</script>
+<script type="application/json" id="ed-fonts">{{ fonts_json|safe }}</script>
+<div data-pdf-page="edit">
+  <div class="ed-bar">
+    <div class="ed-row">
+      <div class="ed-row ed-tools" role="toolbar" aria-label="Tools">
+        {% set groups = [
+          [('edittext', 'textedit', 'Edit text', 'E', 1), ('select', 'cursor', 'Select', 'V', 1)],
+          [('text', 'text', 'Add text', 'T', 1), ('date', 'calendar', 'Date', 'D', 0), ('note', 'note', 'Sticky note', 'N', 0), ('stamp', 'stamp', 'Stamp', 'M', 0)],
+          [('pen', 'pen', 'Pen', 'P', 0), ('pencil', 'pencil', 'Pencil', 'G', 0), ('marker', 'marker', 'Marker (see-through)', 'K', 0), ('whitener', 'brush', 'Whitener brush (correction pen)', 'B', 0)],
+          [('rect', 'square', 'Box', 'R', 0), ('roundrect', 'roundrect', 'Rounded box', '', 0), ('ellipse', 'circle', 'Circle', 'O', 0), ('triangle', 'triangle', 'Triangle', '', 0),
+           ('diamond', 'diamond', 'Diamond', '', 0), ('star', 'star', 'Star', '', 0), ('line', 'line', 'Line', 'L', 0), ('arrow', 'arrow', 'Arrow', 'A', 0), ('arrow2', 'arrow2', 'Double arrow', '', 0)],
+          [('highlight', 'marker', 'Highlight', 'H', 0), ('underline', 'underline', 'Underline', 'U', 0), ('strike', 'strike', 'Strike out', '', 0),
+           ('check', 'check', 'Tick ✓', 'C', 0), ('cross', 'x', 'Cross ✗', 'Z', 0), ('dot', 'dot', 'Dot', '', 0)],
+          [('whiteout', 'eraser', 'Whiteout box', 'W', 1), ('redact', 'redact', 'Redact', 'X', 0)],
+          [('image', 'image', 'Picture', 'I', 0), ('sign', 'pen', 'Signature', 'S', 0), ('link', 'link', 'Link', '', 0)],
+        ] %}
+        {% for group in groups %}
+        {% for t, ic, label, key, wide in group %}
+        <button type="button" data-tool="{{ t }}" aria-pressed="{{ 'true' if t == 'edittext' else 'false' }}" title="{{ label }}{{ ' (' ~ key ~ ')' if key }}" aria-label="{{ label }}"{% if wide %} class="has-label"{% endif %}>{{ icon(ic) }}<span>{{ label.split(' (')[0] }}</span></button>
+        {% endfor %}
+        {% if not loop.last %}<span class="sep"></span>{% endif %}
+        {% endfor %}
+      </div>
+      <span class="sep"></span>
+      <div class="ed-row ed-acts">
+        <button type="button" data-ed="undo" title="Undo (Ctrl+Z)" aria-label="Undo">{{ icon('undo') }}</button>
+        <button type="button" data-ed="redo" title="Redo (Ctrl+Y)" aria-label="Redo">{{ icon('redo') }}</button>
+        <button type="button" data-ed="delete" title="Delete the selected item (Del)" aria-label="Delete">{{ icon('trash') }}</button>
+        <button type="button" data-ed="dup" title="Duplicate (Ctrl+D)" aria-label="Duplicate">{{ icon('copy') }}</button>
+        <button type="button" data-ed="paste" title="Paste the copied item (Ctrl+V; copy with Ctrl+C)" aria-label="Paste">{{ icon('paste') }}</button>
+        <button type="button" data-ed="front" title="Bring to front" aria-label="Bring to front">{{ icon('front') }}</button>
+        <button type="button" data-ed="back" title="Send to back" aria-label="Send to back">{{ icon('back') }}</button>
+        <span class="sep"></span>
+        <button type="button" data-ed="zoom-out" title="Smaller" aria-label="Smaller">{{ icon('zoom-out') }}</button>
+        <button type="button" data-ed="fit" title="Fit the width" data-zoom-label>100%</button>
+        <button type="button" data-ed="zoom-in" title="Bigger" aria-label="Bigger">{{ icon('zoom-in') }}</button>
+      </div>
+      <div class="ed-save">
+        <span class="muted small" data-ed-count>No changes yet</span>
+        <button class="btn btn-primary btn-sm" type="button" data-ed="save">{{ icon('check') }} Save as new PDF</button>
+      </div>
+    </div>
+    <div class="ed-props" data-props>
+      <label data-p="color"><span data-color-label>Colour</span> <input type="color" data-prop="color"></label>
+      <label data-p="fill">Fill <select data-prop="fillMode"><option value="none">None</option><option value="color">Colour</option></select>
+        <input type="color" data-prop="fill"></label>
+      <label data-p="width">Line <input type="number" min="0" max="40" step="0.5" data-prop="width"></label>
+      <label data-p="opacity">See-through <input type="range" min="5" max="100" data-prop="opacity"></label>
+      <label data-p="dash">Line style <select data-prop="dash"><option value="solid">Solid</option><option value="dash">Dashed</option><option value="dot">Dotted</option></select></label>
+      <label data-p="paper"><input type="checkbox" data-prop="matchPaper"> Match the paper colour</label>
+      <label data-p="stamp">Stamp <input type="text" list="ed-stamps" maxlength="40" data-prop="text" placeholder="APPROVED"></label>
+      <datalist id="ed-stamps">{% for w in ['APPROVED', 'REJECTED', 'DRAFT', 'FINAL', 'CONFIDENTIAL', 'PAID', 'RECEIVED', 'COPY', 'VOID', 'URGENT', 'SIGN HERE', 'ORIGINAL', 'অনুমোদিত', 'গৃহীত', 'বাতিল'] %}<option value="{{ w }}">{% endfor %}</datalist>
+      <label data-p="url">Web address <input type="url" data-prop="url" placeholder="https://…" size="28"></label>
+      <label data-p="font">Font <select data-prop="font"><option value="original">Same as the PDF</option>
+        {% for group, items in font_groups %}<optgroup label="{{ group }}">{% for k, label in items %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</optgroup>{% endfor %}</select></label>
+      <label data-p="size">Size <input type="number" min="4" max="300" step="0.5" data-prop="size"></label>
+      <span data-p="style" class="ed-row">
+        <button type="button" class="ed-toggle" data-flag="bold" title="Bold" aria-pressed="false">B</button>
+        <button type="button" class="ed-toggle" data-flag="italic" title="Italic" aria-pressed="false"><i>I</i></button>
+        <button type="button" class="ed-toggle" data-flag="underline" title="Underline" aria-pressed="false"><u>U</u></button>
+        <button type="button" class="ed-toggle" data-flag="strike" title="Strike through" aria-pressed="false"><s>S</s></button>
+      </span>
+      <span data-p="align" class="ed-row">
+        <button type="button" class="ed-toggle" data-align="left" title="Left" aria-pressed="true">⟸</button>
+        <button type="button" class="ed-toggle" data-align="center" title="Centre" aria-pressed="false">≡</button>
+        <button type="button" class="ed-toggle" data-align="right" title="Right" aria-pressed="false">⟹</button>
+      </span>
+      <span data-p="images" class="ed-row">
+        <label class="btn btn-secondary btn-sm file-btn">{{ icon('upload') }} Choose a picture
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-ed-image hidden></label>
+        <span class="ed-images" data-ed-gallery></span>
+      </span>
+      <span data-p="ocr" class="ed-row ed-ocr">
+        {% if ocr_languages %}
+        <label>OCR language <select data-ocr-lang>
+          {% if ocr_default and '+' in ocr_default %}<option value="{{ ocr_default }}">{{ ocr_default.replace('+', ' + ') }}</option>{% endif %}
+          {% for code, name in ocr_languages %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</select></label>
+        <button type="button" class="btn btn-secondary btn-sm" data-ocr="read" title="For a scanned page or a photo: find its text so you can click and change it">{{ icon('scan') }} Read text on this page (OCR)</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-ocr="all" title="Turn every paragraph the OCR found into real text you can change, search and copy">{{ icon('textedit') }} Make the whole page editable</button>
+        <a class="small" href="/settings">+ languages</a>
+        {% else %}
+        <span class="ed-help">Scanned pages: install Tesseract and add a language in <a href="/settings">Settings</a> to read their text.</span>
+        {% endif %}
+      </span>
+      <span class="ed-help" data-help></span>
+    </div>
+  </div>
+  <div class="ed-shell">
+    <nav class="ed-rail" data-rail aria-label="Pages"></nav>
+    <div class="ed-canvas" data-canvas></div>
+  </div>
+</div>
+
+<dialog class="pdf-dialog" id="ed-sign" aria-labelledby="ed-sign-title">
+  <div class="pdf-dialog-in">
+    <div class="pdf-dialog-head"><h2 id="ed-sign-title">Draw your signature</h2>
+      <button class="btn btn-ghost btn-icon" type="button" data-sign-close aria-label="Close">{{ icon('x') }}</button></div>
+    <div class="pdf-dialog-body">
+      <canvas class="ed-sign-pad" width="900" height="300" data-sign-pad></canvas>
+      <div class="ed-row"><label class="ed-help">Colour <input type="color" value="#1e3a8a" data-sign-color></label>
+        <label class="ed-help">Thickness <input type="range" min="1" max="8" value="3" data-sign-width></label></div>
+      <p class="help">Draw with the mouse, a finger or a pen. Or choose a picture of your signature with the Picture tool.</p>
+    </div>
+    <div class="pdf-dialog-foot">
+      <button class="btn btn-ghost" type="button" data-sign-clear>Clear</button>
+      <button class="btn btn-primary" type="button" data-sign-use>{{ icon('check') }} Put it on the page</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="pdf-dialog" id="ed-saved" aria-labelledby="ed-saved-title">
+  <div class="pdf-dialog-in">
+    <div class="pdf-dialog-head"><h2 id="ed-saved-title">Saved</h2>
+      <button class="btn btn-ghost btn-icon" type="button" data-saved-close aria-label="Close">{{ icon('x') }}</button></div>
+    <div class="pdf-dialog-body"><div class="pdf-result" data-saved-result></div></div>
+    <div class="pdf-dialog-foot">
+      <button class="btn btn-ghost" type="button" data-saved-close>Keep editing this one</button>
+      <a class="btn btn-primary" href="#" data-saved-open>{{ icon('edit') }} Go on editing the new PDF</a>
+    </div>
+  </div>
+</dialog>
+{% include "_parts.html" %}
+{% endblock %}

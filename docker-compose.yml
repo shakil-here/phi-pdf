@@ -1,0 +1,18 @@
+# docker compose up -d   →  http://localhost:8080
+services:
+  pdf:
+    build:
+      context: .
+      args:
+        OFFICE: "0"          # "1" adds LibreOffice for Office → PDF (the image grows by ~600 MB)
+    ports: ["8080:8080"]
+    volumes: ["pdf-data:/data"]
+    environment:
+      PHIPDF_KEEP_HOURS: "2"          # files are deleted after this many hours
+      PHIPDF_MAX_UPLOAD_MB: "200"
+      # PHIPDF_PASSWORD: "change-me"  # a private server: everyone types this password
+      # PHIPDF_API_KEY: "long-random" # the REST API then needs "Authorization: Bearer <key>"
+      # PHIPDF_HTTPS: "1"             # behind an HTTPS proxy (secure cookies)
+    restart: unless-stopped
+volumes:
+  pdf-data:

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}All tools{% endblock %}
+{% block head %}<script src="/static/pdftools.js" defer></script>{% endblock %}
+{% block heading %}<h1>Every PDF tool, free</h1><span class="muted small">merge, split, compress, OCR, convert, edit text, sign, protect · open source · {{ 'private workspace' if public else 'runs on this computer' }}</span>{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/files">{{ icon('folder') }} My files</a>
+<a class="btn btn-primary" href="/tools/edit">{{ icon('textedit') }} Edit text in a PDF</a>{% endblock %}
+{% block content %}
+<div class="stack" data-pdf-page="home">
+<section class="card pdf-hero">
+  <label class="dropzone" data-pdf-drop>
+    <input type="file" multiple accept="{{ accept }}" aria-label="Choose files">
+    <span class="dropzone-icon">{{ icon('upload') }}</span>
+    <strong>Drop PDFs, pictures, Word/Excel/PowerPoint or text files here</strong>
+    <span class="muted small">or click to choose · up to {{ (max_mb * 1048576)|size|replace(".0 ", " ") }} each · then pick a tool below</span>
+  </label>
+  <div class="pdf-hero-side">
+    <ul class="pdf-promises">
+      <li>{{ icon('textedit') }}<span><strong>Edit the text itself</strong> — click a paragraph and type, like in Word</span></li>
+      <li>{{ icon('scan') }}<span><strong>OCR in 100+ languages</strong> — বাংলা, हिन्दी, العربية… with page cleaning</span></li>
+      <li>{{ icon('word') }}<span><strong>Real conversions</strong> — PDF ⇄ Word, Excel, PowerPoint</span></li>
+      <li>{{ icon('shield') }}<span><strong>{{ 'Your files stay private' if public else 'Nothing leaves this computer' }}</strong>{% if public and keep_hours %} — deleted after {{ keep_hours|round(1)|string|replace('.0', '') }} h{% endif %}</span></li>
+    </ul>
+    <div class="pdf-stats">
+      <div class="pdf-stat"><strong>{{ totals.n }}</strong><span>files</span></div>
+      <div class="pdf-stat"><strong>{{ totals.bytes|size }}</strong><span>stored</span></div>
+      <div class="pdf-stat"><strong>{{ totals.runs_done }}</strong><span>tools run</span></div>
+    </div>
+  </div>
+  <div class="pdf-upload-status" data-upload-status hidden></div>
+</section>
+
+<section class="card" data-new-files hidden>
+  <div class="card-head"><h2>{{ icon('check') }} Added — now pick a tool</h2>
+    <span class="muted small">the new files are ticked; the bar at the bottom sends them to a tool</span></div>
+  <div class="pdf-file-grid" data-new-list></div>
+</section>
+
+<section class="pdf-groups">
+  {% for gid, label, tools in groups_list %}
+  <div class="pdf-group" id="{{ gid }}">
+    <h2 class="pdf-group-title pdf-g-{{ gid }}"><span class="pdf-dot"></span>{{ label }}</h2>
+    <div class="pdf-tool-grid">
+      {% for t in tools %}
+      <a class="pdf-tool pdf-g-{{ gid }}" href="/tools/{{ t.id }}" data-tool-link="{{ t.id }}">
+        <span class="pdf-tool-icon">{{ icon(t.icon) }}</span>
+        <span class="pdf-tool-text"><strong>{{ t.label }}</strong><small>{{ t.blurb }}</small></span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+<div class="two-col two-col-wide">
+  <section class="card">
+    <div class="card-head"><h2>{{ icon('folder') }} Recent files</h2><a class="btn btn-ghost btn-sm" href="/files">All files →</a></div>
+    <script type="application/json" id="pdf-files-data">{{ recent|tojson }}</script>
+    <div class="pdf-file-grid" data-file-grid></div>
+    {% if not recent %}<p class="pdf-empty">Nothing here yet. Drop a file above.</p>{% endif %}
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>{{ icon('clock') }} Recent activity</h2></div>
+    {% if runs %}
+    <ul class="pdf-runs">
+      {% for r in runs %}
+      <li>
+        <span class="pdf-tool-icon pdf-g-{{ r.group }}">{{ icon(r.icon or 'pdf') }}</span>
+        <span class="pdf-run-text">
+          <a href="/runs/{{ r.id }}">{{ r.label }}</a>
+          <small title="{{ r.input_names|join(', ') }}">{{ r.input_names|join(', ') or '—' }}{% if r.status == 'done' %} → {{ r.output_count }} file{{ 's' if r.output_count != 1 }}{% endif %}</small>
+          {% if r.summary or r.error %}<small>{{ r.summary or r.error }}</small>{% endif %}
+        </span>
+        <span class="badge badge-{{ 'done' if r.status == 'done' else ('failed' if r.status == 'failed' else ('running' if r.status == 'running' else 'interrupted')) }}"><span class="dot"></span>{{ {'done': 'Done', 'failed': 'Failed', 'running': 'Running', 'interrupted': 'Stopped'}[r.status] }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="pdf-empty">The tools you run appear here, with links to their results.</p>
+    {% endif %}
+  </section>
+</div>
+{% include "_parts.html" %}
+</div>
+{% endblock %}

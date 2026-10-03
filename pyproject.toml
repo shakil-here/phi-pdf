@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phi-pdf-studio"
+version = "1.0.0"
+description = "Free, open-source PDF tools on your own computer or server: edit text in place, OCR in 100+ languages, PDF to Word/Excel/PowerPoint, merge, split, compress, sign, protect, redact. Web app, REST API and command line."
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
+requires-python = ">=3.10"
+authors = [{ name = "Physics Hunters" }]
+keywords = ["pdf", "ocr", "pdf editor", "pdf to word", "merge pdf", "compress pdf", "bengali", "self-hosted"]
+classifiers = [
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "Framework :: FastAPI",
+  "Topic :: Office/Business",
+  "Topic :: Text Processing",
+]
+dependencies = [
+  "pymupdf>=1.26",
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "pillow>=10",
+  "numpy>=1.24",
+  "python-docx>=1.1",
+  "openpyxl>=3.1",
+  "python-pptx>=0.6.23",
+  "markdown>=3.5",
+  "pdf2docx>=0.5.8",
+  "fonttools>=4.40",
+]
+
+[project.optional-dependencies]
+ai = ["anthropic>=1.0"]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+phi-pdf = "pdfstudio.cli:main"
+
+[tool.setuptools]
+packages = ["pdfstudio"]
+
+[tool.setuptools.package-data]
+pdfstudio = ["templates/*.html", "static/*", "fonts/*.ttf", "fonts/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

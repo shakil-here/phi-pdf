@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}{{ status }}{% endblock %}
+{% block heading %}<h1>{{ 'Not found' if status == 404 else 'Something went wrong' }}</h1>{% endblock %}
+{% block content %}
+<section class="card error-page">
+  <div class="big">{{ status }}</div>
+  <p>{{ message }}</p>
+  <a class="btn btn-primary" href="/">{{ icon('home') }} All tools</a>
+  <a class="btn btn-ghost" href="/files">{{ icon('folder') }} My files</a>
+</section>
+{% endblock %}

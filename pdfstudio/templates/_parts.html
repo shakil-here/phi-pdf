@@ -1,0 +1,48 @@
+{# Shared by the PDF tools pages: the tool list for the scripts, the "choose from My files" dialog and the
+   bar shown when files are ticked. #}
+{% from "_macros.html" import icon %}
+<script type="application/json" id="pdf-tools-data">{{ tools_json|safe }}</script>
+<template id="pdf-icons">
+  {% for name in ['pdf', 'image', 'archive', 'library', 'download', 'eye', 'star', 'trash', 'edit', 'grid', 'x', 'check',
+                  'rotate', 'copy', 'blank', 'lock', 'merge', 'compress', 'stamp', 'split', 'spark', 'refresh', 'folder', 'word', 'table', 'slides', 'doc', 'textedit', 'api', 'office', 'upload'] %}
+  <span data-icon="{{ name }}">{{ icon(name) }}</span>
+  {% endfor %}
+  {% for gid, label, tools in groups_list or [] %}{% for t in tools %}<span data-icon="{{ t.icon }}">{{ icon(t.icon) }}</span>{% endfor %}{% endfor %}
+</template>
+
+<dialog class="pdf-dialog" id="pdf-picker" aria-labelledby="pdf-picker-title">
+  <div class="pdf-dialog-in">
+    <div class="pdf-dialog-head">
+      <h2 id="pdf-picker-title">Choose from My files</h2>
+      <button class="btn btn-ghost btn-icon" type="button" data-picker-close aria-label="Close">{{ icon('x') }}</button>
+    </div>
+    <div class="pdf-dialog-body">
+      <div class="filters">
+        <input type="search" data-picker-q placeholder="Search by name" aria-label="Search files">
+        <select data-picker-kind aria-label="Kind">
+          <option value="">PDFs and pictures</option><option value="pdf">PDFs</option><option value="image">Pictures</option>
+        </select>
+      </div>
+      <div class="pdf-file-grid" data-picker-list></div>
+    </div>
+    <div class="pdf-dialog-foot">
+      <span class="muted small" data-picker-count>Nothing ticked</span>
+      <button class="btn btn-ghost" type="button" data-picker-close>Cancel</button>
+      <button class="btn btn-primary" type="button" data-picker-ok>{{ icon('check') }} Add</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="pdf-selbar" data-selbar hidden>
+  <strong data-sel-count>0 selected</strong>
+  <a class="btn btn-secondary btn-sm" href="#" data-sel-tool="merge">{{ icon('merge') }} Merge</a>
+  <a class="btn btn-secondary btn-sm" href="#" data-sel-tool="compress">{{ icon('compress') }} Compress</a>
+  <a class="btn btn-secondary btn-sm" href="#" data-sel-tool="img2pdf">{{ icon('image') }} Images to PDF</a>
+  <details class="pdf-menu">
+    <summary class="btn btn-secondary btn-sm">{{ icon('grid') }} Other tools</summary>
+    <div class="pdf-menu-list is-up" data-sel-menu></div>
+  </details>
+  <a class="btn btn-secondary btn-sm" href="#" data-sel-zip>{{ icon('download') }} Download ZIP</a>
+  <button class="btn btn-ghost btn-sm" type="button" data-sel-delete>{{ icon('trash') }} Delete</button>
+  <button class="btn btn-ghost btn-sm" type="button" data-sel-clear>{{ icon('x') }} Clear</button>
+</div>

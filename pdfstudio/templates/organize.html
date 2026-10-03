@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Organize pages{% endblock %}
+{% block head %}<script src="/static/pdftools.js" defer></script><script src="/static/pdforganize.js" defer></script>{% endblock %}
+{% block heading %}<div class="pdf-tool-head"><span class="pdf-tool-icon pdf-g-organize">{{ icon('grid') }}</span>
+  <div><h1>Organize pages</h1><span class="muted small">{{ chosen|map(attribute='name')|join(' + ') }}</span></div></div>{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/">{{ icon('grid') }} All tools</a>{% endblock %}
+{% block content %}
+<script type="application/json" id="org-data">{{ chosen_json|safe }}</script>
+<div class="stack" data-pdf-page="organize">
+  <div class="org-bar" role="toolbar" aria-label="Pages">
+    <button class="btn btn-ghost btn-sm" type="button" data-act="all" title="Select all (Ctrl+A)">{{ icon('check') }} All</button>
+    <span class="sep"></span>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="left" title="Turn left (Shift+R)">↺ Left</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="right" title="Turn right (R)">↻ Right</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="dup" title="Duplicate (Ctrl+D)">{{ icon('copy') }} Duplicate</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="del" title="Delete (Del)">{{ icon('trash') }} Delete</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="back" title="Move earlier">← Move</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="fwd" title="Move later">Move →</button>
+    <span class="sep"></span>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="blank" title="Blank page after the selection">{{ icon('blank') }} Blank page</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="add" title="Pages of another PDF">{{ icon('plus') }} Add a PDF</button>
+    <label class="btn btn-ghost btn-sm file-btn" title="Upload a PDF and add its pages">{{ icon('upload') }} Upload
+      <input type="file" accept=".pdf,application/pdf" multiple data-org-upload hidden></label>
+    <button class="btn btn-ghost btn-sm" type="button" data-act="reverse" title="Reverse the order (of the selection, or of all)">⇅ Reverse</button>
+    <span class="sep"></span>
+    <button class="btn btn-ghost btn-sm btn-icon" type="button" data-act="undo" title="Undo (Ctrl+Z)" aria-label="Undo">{{ icon('undo') }}</button>
+    <button class="btn btn-ghost btn-sm btn-icon" type="button" data-act="redo" title="Redo (Ctrl+Y)" aria-label="Redo">{{ icon('redo') }}</button>
+    <input type="range" min="90" max="300" value="150" data-zoom aria-label="Page size">
+    <span class="org-count" data-count></span>
+  </div>
+  <div class="pdf-upload-status" data-upload-status hidden></div>
+  <div class="card-head">
+    <div class="org-legend" data-legend></div>
+    <div class="org-save">
+      <input type="text" data-name aria-label="Name of the new PDF">
+      <button class="btn btn-primary" type="button" data-save>{{ icon('check') }} Save as new PDF</button>
+    </div>
+  </div>
+  <p class="help">Click a page to select it (Ctrl/⌘-click adds, Shift-click a run). Drag pages to move them. Keys: Delete, R / Shift+R to turn, Ctrl+Z to undo.</p>
+  <section class="card pdf-result" data-result hidden></section>
+  <div class="org-grid" data-grid></div>
+</div>
+{% include "_parts.html" %}
+{% endblock %}
